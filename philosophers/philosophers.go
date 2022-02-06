@@ -12,28 +12,15 @@ var ch chan bool
 var eaten int
 
 func main() {
-	/*ch = make(chan bool, 2)
-	wg.Add(2)
-	for i := 1; i <= 5; i++ {
-		fmt.Println("Creating philosopher", i)
-		go philosopher(i)
-	}
-
-	select {
-	case <-ch:
-		wg.Done()
-	default:
-		fmt.Println("Waiting for philosophers to eat")
-	}*/
 	mt.Lock()
 	go host()
 	for i := 1; i <= 5; i++ {
+		wg.Add(1)
 		go philosopher(i)
 	}
 
-	<-ch
+	wg.Wait()
 	fmt.Println("All philosophers have eaten")
-	select {}
 }
 
 func philosopher(num int) {
@@ -44,6 +31,7 @@ func philosopher(num int) {
 		time.Sleep(1 * time.Second)
 		fmt.Println("Philosopher", num, "is eating")
 	}
+	wg.Done()
 }
 
 func host() {
@@ -54,8 +42,9 @@ func host() {
 		mt.Unlock()
 
 		if eaten == 15 {
-			mt.Unlock()
-			ch <- true
+			//mt.Unlock()
+			//ch <- true
+			return
 		}
 	}
 }
