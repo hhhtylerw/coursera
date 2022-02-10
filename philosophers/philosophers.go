@@ -6,45 +6,46 @@ import (
 	"time"
 )
 
-var mt sync.Mutex
 var wg sync.WaitGroup
-var ch chan bool
-var eaten int
+
+type Philosopher struct {
+	Name           int
+	LeftChopStick  *Chopsticks
+	RightChopStick *Chopsticks
+}
+
+type Chopsticks struct {
+	sync.Mutex
+}
 
 func main() {
-	mt.Lock()
-	go host()
-	for i := 1; i <= 5; i++ {
+	philosopherCount := 5
+	chopsticks := make([]*Chopsticks, philosopherCount)
+	for i := 1; i <= philosopherCount; i++ {
+		chopsticks[i-1] = new(Chopsticks)
+	}
+
+	philosophers := make([]*Philosopher, philosopherCount)
+	for i := 1; i <= philosopherCount; i++ {
+		philosophers[i-1] = &Philosopher{i, chopsticks[i-1], chopsticks[(i)%philosopherCount]}
+	}
+
+	for _, p := range philosophers {
 		wg.Add(1)
-		go philosopher(i)
+		go p.eat()
 	}
-
 	wg.Wait()
-	fmt.Println("All philosophers have eaten")
 }
 
-func philosopher(num int) {
-	//fmt.Println("Philosopher", num, "is eating")
-	fmt.Println("Philosopher", num, "started")
-	for i := 0; i < 3; i++ {
-		mt.Lock()
+func (p Philosopher) eat() {
+	defer wg.Done()
+	for i := 1; i <= 3; i++ {
+		p.LeftChopStick.Lock()
+		p.RightChopStick.Lock()
+		fmt.Println(p.Name, "is starting to eat.")
+		p.LeftChopStick.Unlock()
+		p.RightChopStick.Unlock()
+		fmt.Println(p.Name, "has finished eating.")
 		time.Sleep(1 * time.Second)
-		fmt.Println("Philosopher", num, "is eating")
-	}
-	wg.Done()
-}
-
-func host() {
-	for {
-		time.Sleep(2 * time.Second)
-		eaten++
-		fmt.Println("Host loop:", eaten)
-		mt.Unlock()
-
-		if eaten == 15 {
-			//mt.Unlock()
-			//ch <- true
-			return
-		}
 	}
 }

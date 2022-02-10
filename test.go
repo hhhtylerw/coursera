@@ -1,128 +1,87 @@
-/* The goal of this activity is to explore the use of threads by creating a program for sorting integers that uses four
-goroutines to create four sub-arrays and then merge the arrays into a single array.
-
-Write a program to sort an array of integers. The program should partition the array into 4 parts, each of which is sorted
-by a different goroutine. Each partition should be of approximately equal size. Then the main goroutine should merge
-the 4 sorted subarrays into one large sorted array.
-
-The program should prompt the user to input a series of integers. Each goroutine which sorts ¼ of the array should
-print the subarray that it will sort. When sorting is complete, the main goroutine should print the entire sorted list.
-*/
-
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"os"
-	"sort"
-	"strconv"
-	"strings"
 	"sync"
+	"time"
 )
 
-func main() {
+var (
+	host Host
+	wg   sync.WaitGroup
+	once sync.Once
+)
 
-	// Prompt for integers
-	fmt.Println("")
-	fmt.Println("Enter integers on a single row: ")
-	var strinput string
-
-	// Read lines to create inital array of integers
-	reader := bufio.NewReader(os.Stdin)
-	strinput, _ = reader.ReadString('\n')
-
-	// Split line by spaces to create array of strings
-	aryinput := strings.Split(strinput, " ")
-
-	// Filter array to add only integers to slice
-	count := 0
-	var sequence []int
-	for _, v := range aryinput {
-		// Remove any spaces that might surround the integer
-		v = strings.TrimSpace(v)
-		// See if 0 entered and add it as integer to the slice
-		if v == "0" {
-			sequence = append(sequence, 0)
-			//equence[count] = 0
-			count++
-		} else {
-			// Convert string to integer
-			valueint, _ := strconv.Atoi(v)
-			// If integer is not 0, than the value of the string was an actual integer
-			// Add the intger to the slice
-			if valueint != 0 {
-				sequence = append(sequence, valueint)
-				//sequence[count] = valueint
-				count++
-			}
-		}
-	}
-
-	// Get lengths for arrays
-	totalints := len(sequence)
-	avglength := totalints / 4
-	fourthlength := totalints - (avglength * 3)
-
-	// Create four subarrays of approximately equal size
-	end := 0
-	if fourthlength > avglength {
-		end = avglength + 1
-		fourthlength = fourthlength - 1
-	} else {
-		end = avglength
-	}
-	var oneArray []int = sequence[0:end]
-
-	start := end
-	if fourthlength > avglength {
-		end = start + avglength + 1
-		fourthlength = fourthlength - 1
-	} else {
-		end = start + avglength
-	}
-	var twoArray []int = sequence[start:end]
-
-	start = end
-	if fourthlength > avglength {
-		end = start + avglength + 1
-		fourthlength = fourthlength - 1
-	} else {
-		end = start + avglength
-	}
-	var threeArray []int = sequence[start:end]
-
-	start = end
-	var fourArray []int = sequence[start:]
-
-	// Send four arrarys to four routines for sorting
-	var wg sync.WaitGroup
-	wg.Add(4)
-	fmt.Println("")
-	go subarray(oneArray, "One", &wg)
-	go subarray(twoArray, "Two", &wg)
-	go subarray(threeArray, "Three", &wg)
-	go subarray(fourArray, "Four", &wg)
-	wg.Wait()
-
-	// Merge the 4 sorted subarrays into one large sorted array
-	finalArray := append(oneArray, twoArray...)
-	finalArray = append(finalArray, threeArray...)
-	finalArray = append(finalArray, fourArray...)
-	// Final sort
-	sort.Ints(finalArray)
-
-	fmt.Println("")
-
-	// Print the entire sorted list
-	fmt.Println("Final Sorted Array: ", finalArray)
-	fmt.Println("")
+type Host struct {
+	// slots is slots for philosophers to eat concurrently
+	slots chan int
 }
 
-func subarray(a []int, s string, wg *sync.WaitGroup) {
-	// Print the subarray that it will sort
-	fmt.Println("Subarray", s, ": ", a)
-	// Sort subarray
-	sort.Ints(a)
-	wg.Done()
+func (h *Host) Init() {
+	// Two slots for two philosophers to eat concurrently
+	// by this way, host will automatically block other
+	// philosophers when slots is full
+	h.slots = make(chan int, 2)
+}
+
+type Chopstick struct {
+	sync.Mutex
+}
+
+type Philosopher struct {
+	id         int
+	lChopstick *Chopstick
+	rChopstick *Chopstick
+}
+
+func (p *Philosopher) getPermissionFromHost() {
+	// Get permission by assigning his id to slots channel
+	host.slots <- p.id
+}
+
+func (p *Philosopher) givePermissionBack() {
+	// Give slot back for others
+	<-host.slots
+}
+
+func (p *Philosopher) Eat() {
+	defer wg.Done()
+
+	for i := 0; i < 3; i++ {
+		p.getPermissionFromHost()
+
+		p.lChopstick.Lock()
+		p.rChopstick.Lock()
+		fmt.Printf("starting to eat %d\n", p.id)
+
+		// Time duration for eating
+		time.Sleep(20 * time.Millisecond)
+
+		fmt.Printf("finishing eating %d\n", p.id)
+		p.lChopstick.Unlock()
+		p.rChopstick.Unlock()
+
+		p.givePermissionBack()
+	}
+}
+
+func main() {
+	chopstick := make([]*Chopstick, 5)
+	for i := 0; i < 5; i++ {
+		chopstick[i] = new(Chopstick)
+	}
+
+	philosopher := make([]*Philosopher, 5)
+	for i := 0; i < 5; i++ {
+		philosopher[i] =
+			&Philosopher{id: i + 1, lChopstick: chopstick[i], rChopstick: chopstick[(i+1)%5]}
+	}
+
+	host.Init()
+
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go philosopher[i].Eat()
+	}
+	wg.Wait()
 }
